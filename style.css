@@ -1,0 +1,125 @@
+:root {
+  color-scheme: dark;
+  --bg: #0e1116;
+  --bg-elev: #121622;
+  --panel: #16181f;
+  --border: #22242c;
+  --muted: #9aa4b2;
+  --text: #e6e6e6;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, monospace;
+}
+
+/* ===== Barra superior (mantendo suas classes) ===== */
+.bar {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+  -webkit-app-region: drag;
+}
+.bar * { -webkit-app-region: no-drag; }
+
+.bar-left { display: flex; gap: 8px; align-items: center; }
+.bar label   { font-size: 12px; opacity: .85; color: var(--text); }
+.bar select  {
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #0d0f14;
+  color: var(--text);
+  padding: 0 8px;
+  outline: none;
+}
+.bar-status { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+/* ===== Feed/lista de resultados ===== */
+.feed {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: calc(100vh - 42px);
+  overflow: auto;
+}
+
+/* ===== Cartão ===== */
+.item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elev);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset;
+}
+.item .meta { font-size: 12px; color: var(--muted); }
+
+/* Miniatura da captura */
+.thumb {
+  width: 380px;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+/* ===== Blocos de texto ===== */
+.item pre {
+  margin: 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: #0a0d14;
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+  overflow: auto;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* ===== Markdown + código (resposta do modelo) ===== */
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  margin: 12px 0 8px;
+}
+.markdown-body p, .markdown-body ul, .markdown-body ol {
+  margin: 8px 0;
+}
+.markdown-body code {
+  background: #0a0d14;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.markdown-body pre {
+  background: #0a0d14;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  overflow: auto;
+}
+.markdown-body pre code {
+  display: block;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+/* Para o container que recebe a resposta renderizada */
+.answer pre { margin: 0; }
+
+.hidden { display: none; }

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Privacy Meeting Assistant</title>
+
+  <!-- CSP: liberar cdnjs para scripts/estilos usados pelo marked/hljs -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 img-src 'self' data:;
+                 style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;
+                 script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com;">
+
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Highlight & Marked (CDN) -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>
+    // Configura highlight dentro do marked
+    marked.setOptions({
+      highlight: (code, lang) => {
+        try { return hljs.highlight(code, { language: lang }).value; }
+        catch { return hljs.highlightAuto(code).value; }
+      }
+    });
+  </script>
+</head>
+<body>
+  <div class="bar">
+    <div class="bar-left">
+      <label for="model">Modelo</label>
+      <select id="model">
+        <option value="deepseek-coder:latest">deepseek-coder:latest</option>
+        <option value="qwen2.5-coder:3b">qwen2.5-coder:3b</option>
+      </select>
+      <label for="language">Língua</label>
+      <select id="language">
+        <option value="auto">Auto</option>
+        <option value="javascript">JavaScript</option>
+        <option value="typescript">TypeScript</option>
+        <option value="python">Python</option>
+        <option value="java">Java</option>
+        <option value="cpp">C++</option>
+      </select>
+    </div>
+    <div id="status" class="bar-status">
+      Pronto • Ctrl+1/2/H capturar • Ctrl+Enter resolver • Ctrl+3 transparência • Ctrl+4 sair
+    </div>
+  </div>
+
+  <div id="feed" class="feed"></div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

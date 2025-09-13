@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+out/
+*.exe
+*.zip
+*.tar.gz
+*.asar
+*.log
+*.png
