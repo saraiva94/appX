@@ -182,6 +182,7 @@ const HOTKEY_GROUPS = {
   opacity: ['Ctrl+3','Control+3','CommandOrControl+3'],
   quit: ['Ctrl+4','Control+4','CommandOrControl+4','Ctrl+Shift+4','Control+Shift+4','CommandOrControl+Shift+4','Ctrl+Alt+X','Control+Alt+X','CommandOrControl+Alt+X'],
   devtools: ['Ctrl+Shift+I','Control+Shift+I','CommandOrControl+Shift+I'],
+  testShot: ['Ctrl+T','Control+T','CommandOrControl+T']
 };
 const HANDLERS = {
   bringToFront: () => bringToFront(),
@@ -197,6 +198,13 @@ const HANDLERS = {
   opacity: () => { if(!win) return; translucent=!translucent; win.setOpacity(translucent?0.6:1.0); sendStatus(translucent? 'Transparente ON':'Transparente OFF'); },
   quit: () => hardQuit(),
   devtools: () => { if (win) win.webContents.openDevTools({ mode: 'detach' }); },
+  testShot: async () => {
+    try {
+      writeLog('TEST Ctrl+T start');
+      const png = await captureDisplayPNGByDisplayId(screen.getPrimaryDisplay().id);
+      emitShot(png, 'ctrlT');
+    } catch (e) { sendStatus('Teste falhou: ' + (e?.message || e)); }
+  }
 };
 function nudge(dx,dy){ if(!win) return; const b=win.getBounds(); win.setBounds({x:b.x+dx,y:b.y+dy,width:b.width,height:b.height}, false); }
 function registerAllHotkeys() {
@@ -242,7 +250,7 @@ function startHotkeyWatchdog() {
   }, 15000);
 }
 
-/* ====== APP READY ====== */
+/* ====== APP READY (consolidado) ====== */
 app.whenReady().then(() => {
   app.setAppUserModelId('meu.copiloto.local');
   createWindow();
@@ -269,6 +277,9 @@ app.whenReady().then(() => {
 
   sendStatus(`Logs em: ${LOG}`);
 });
+
+app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 /* ====== ACK / STATUS ====== */
 ipcMain.on('shot:ack', (_e, { id, info }) => {
@@ -298,44 +309,45 @@ ipcMain.handle('pickImage', async () => {
   } catch (e) { writeLog(`pickImage error: ${e?.stack || e}`); return { ok: false, error: e?.message || String(e) }; }
 });
 
-/* ====== OCR via Tesseract.recognize (ENG-only, sem worker custom) ====== */
-async function runRecognize(inputBufferOrPath, label) {
+/* ====== OCR via Tesseract.recognize (AGORA respeita langs) ====== */
+async function runRecognize(inputBufferOrPath, label, langs = 'eng') {
   const { corePath, tessdataDir } = resolveTesseractPaths();
 
   // ajuda o engine a achar os dados (Windows/OneDrive com acentos)
   process.env.TESSDATA_PREFIX = tessdataDir;
 
-  // sanity check
-  const haveEng = fileExists(path.join(tessdataDir, 'eng.traineddata')) ||
-                  fileExists(path.join(tessdataDir, 'eng.traineddata.gz'));
-  if (!haveEng) {
+  const langList = (langs || 'eng').split('+').map(s => s.trim()).filter(Boolean);
+  const primary = langList[0] || 'eng';
+
+  // sanity check básico (primary)
+  const havePrimary = fileExists(path.join(tessdataDir, `${primary}.traineddata`)) ||
+                      fileExists(path.join(tessdataDir, `${primary}.traineddata.gz`));
+  if (!havePrimary) {
     throw new Error(
-      `Arquivo de idioma não encontrado em:\n` +
-      `  ${path.join(tessdataDir, 'eng.traineddata')} (ou .gz)\n` +
-      `Baixe de tessdata_fast e tente novamente.`
+      `Arquivo de idioma não encontrado: ${primary}\n` +
+      `Em: ${path.join(tessdataDir, `${primary}.traineddata`)}`
     );
   }
 
-  writeLog(`TESSERACT recognize start label=${label} tessdata=${tessdataDir} core=${!!corePath}`);
+  writeLog(`TESSERACT recognize start label=${label} tessdata=${tessdataDir} core=${!!corePath} langs=${langs}`);
   const opts = {
-    lang: 'eng', // força ENG
+    lang: langs,             // <- respeita os idiomas vindos do renderer
     corePath: corePath || undefined,
-    // logger: m => writeLog(`TESS ${label}: ${m?.status || ''} ${m?.progress || ''}`) // se quiser verboso
+    // logger: m => writeLog(`TESS ${label}: ${m?.status || ''} ${m?.progress || ''}`)
   };
 
-  // IMPORTANTE: algumas versões esperam assinatura (image, lang, options)
-  // Outras aceitam (image, options) com options.lang. A chamada abaixo cobre as duas.
-  const res = await Tesseract.recognize(inputBufferOrPath, 'eng', opts);
+  // Assinatura: (image, lang, options) — lang pode ser "eng+por"
+  const res = await Tesseract.recognize(inputBufferOrPath, langs, opts);
   const { data } = res || {};
   if (!data) throw new Error('Tesseract retornou vazio.');
   return data;
 }
 
-ipcMain.handle('recognizeImage', async (_evt, { imagePath, whitelist = '' }) => {
+ipcMain.handle('recognizeImage', async (_evt, { imagePath, whitelist = '', langs = 'eng' }) => {
   const t0 = Date.now();
   try {
-    writeLog(`OCR recognizeImage start path=${imagePath}`);
-    const data = await withTimeout(runRecognize(imagePath, 'file'), 30000, 'OCR (arquivo)');
+    writeLog(`OCR recognizeImage start path=${imagePath} langs=${langs}`);
+    const data = await withTimeout(runRecognize(imagePath, 'file', langs), 30000, 'OCR (arquivo)');
     writeLog(`OCR recognizeImage ok textLen=${(data.text||'').length} ms=${Date.now()-t0}`);
     return { ok: true, text: data.text || '' };
   } catch (e) {
@@ -344,11 +356,11 @@ ipcMain.handle('recognizeImage', async (_evt, { imagePath, whitelist = '' }) => 
   }
 });
 
-ipcMain.handle('ocr:png', async (_evt, { b64 }) => {
+ipcMain.handle('ocr:png', async (_evt, { b64, langs = 'eng' }) => {
   const t0 = Date.now();
   try {
     if (!b64) throw new Error('Base64 vazio');
-    writeLog(`OCR start langs=eng b64len=${b64.length}`);
+    writeLog(`OCR start langs=${langs} b64len=${b64.length}`);
     const original = Buffer.from(b64, 'base64');
 
     // meta + preproc leve
@@ -368,7 +380,7 @@ ipcMain.handle('ocr:png', async (_evt, { b64 }) => {
       .png({ compressionLevel: 9 }).toBuffer();
     dumpFile(preproc, 'preproc-main');
 
-    const data = await withTimeout(runRecognize(preproc, 'buffer'), 30000, 'OCR (eng)');
+    const data = await withTimeout(runRecognize(preproc, 'buffer', langs), 30000, `OCR (${langs})`);
     const slim = {
       text: (data.text || ''),
       blocks: (data.blocks || []).map(b => ({
@@ -380,10 +392,10 @@ ipcMain.handle('ocr:png', async (_evt, { b64 }) => {
           }))
         }))
       })),
-      meta: { width, height, mean, langsUsed: 'eng' }
+      meta: { width, height, mean, langsUsed: langs }
     };
 
-    writeLog(`OCR structured ok langs=eng blocks=${slim.blocks.length} totalMs=${Date.now()-t0} textLen=${slim.text.length}`);
+    writeLog(`OCR structured ok langs=${langs} blocks=${slim.blocks.length} totalMs=${Date.now()-t0} textLen=${slim.text.length}`);
     return { ok: true, data: slim };
   } catch (e) {
     const msg = e?.message || String(e); writeLog(`OCR error: ${e?.stack || msg}`);
@@ -396,35 +408,30 @@ ipcMain.handle('ask:ollama', async (_evt, { prompt, model }) => {
   const t0 = Date.now(); const url = 'http://127.0.0.1:11434/api/generate';
   try {
     const ac = new AbortController(); const abortIn = setTimeout(()=>ac.abort(), 30000);
-    writeLog(`OLLAMA request model=${model} len=${prompt?.length || 0}`);
-    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model, prompt, stream:true }), signal: ac.signal })
-      .catch(err => { throw new Error(`Falha ao conectar em Ollama (${url}): ${err.message}`); });
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model, prompt, stream:true }), signal: ac.signal });
     clearTimeout(abortIn);
-    if (!res.ok) throw new Error(`Ollama HTTP ${res.status} — verifique se o modelo "${model}" existe.`);
+    if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
     const text = await res.text();
-    if (!text?.trim()) throw new Error('Ollama não retornou dados (modelo indisponível?).');
-    writeLog(`OLLAMA ok bytes=${text.length} ms=${Date.now()-t0}`);
     return { ok: true, jsonl: text };
-  } catch (e) { writeLog(`OLLAMA error: ${e?.stack || e}`); return { ok: false, error: e?.message || String(e) }; }
+  } catch (e) { return { ok: false, error: e?.message || String(e) }; }
 });
 
-/* ====== TESTE RÁPIDO ====== */
-app.whenReady().then(() => {
-  app.setAppUserModelId('meu.copiloto.local');
-
-  globalShortcut.register('Ctrl+T', async () => {
-    try {
-      writeLog('TEST Ctrl+T start');
-      const png = await captureDisplayPNGByDisplayId(screen.getPrimaryDisplay().id);
-      emitShot(png, 'ctrlT');
-    } catch (e) { sendStatus('Teste falhou: ' + (e?.message || e)); }
-  });
-
-  createWindow();
-  registerAllHotkeys();
-  startHotkeyWatchdog();
-
-  writeLog('Hotkey Ctrl+T ready');
+ipcMain.handle('llm:generate', async (_evt, { prompt, model }) => {
+  const url = 'http://127.0.0.1:11434/api/generate';
+  try {
+    const ac = new AbortController();
+    const abortIn = setTimeout(() => ac.abort(), 12000); // <<< timeout curto
+    const res = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model, prompt, stream:false }),
+      signal: ac.signal
+    });
+    clearTimeout(abortIn);
+    if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
+    const json = await res.json();
+    return { ok: true, data: json.response || '' };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
 });
-
-app.on('will-quit', () => globalShortcut.unregisterAll());

@@ -55,7 +55,7 @@ contextBridge.exposeInMainWorld('bridge', {
   onStatus: (cb) => ipcRenderer.on('status', (_e, msg) => cb(msg)),
   sendStatus: (msg) => ipcRenderer.send('status', msg),
 
-  // Ollama (stream bruto). Ainda exposto se quiser usar preview.
+  // Ollama (stream bruto). Mantido para compat se quiser.
   askOllama: async ({ prompt, model }) => {
     const res = await ipcRenderer.invoke('ask:ollama', { prompt, model });
     if (!res?.ok) throw new Error(res?.error || 'Falha no Ollama');
@@ -84,11 +84,11 @@ contextBridge.exposeInMainWorld('bridge', {
   pickImage: async () => ipcRenderer.invoke('pickImage'),
   recognizeImage: async ({ imagePath, whitelist = '' }) => ipcRenderer.invoke('recognizeImage', { imagePath, whitelist }),
 
-  // === NOVO: gera PATCH (JSON) usando o adaptador do Ollama ===
-  generatePatch: async ({ prompt, model }) => {
+  // === Gera PATCH (JSON) usando o adaptador ===
+  generatePatch: async ({ prompt, model, ocrClean }) => {
     if (!_generatePatch) throw new Error('llm-ollama.js não foi carregado');
     try {
-      const patch = await _generatePatch({ prompt, model });
+      const patch = await _generatePatch({ prompt, model, ocrClean });
       return { ok: true, patch };
     } catch (e) {
       return { ok: false, error: e?.message || String(e) };

@@ -66,21 +66,42 @@ body {
 }
 .item .meta { font-size: 12px; color: var(--muted); }
 
-/* ===== Overlay responsivo */
+/* ===== Overlay responsivo (IMAGEM OCULTA) */
 .overlay-wrap {
   position: relative;
   width: 100%;
   max-width: 100%;
+
+  /* <<< oculta a imagem/overlay por padrão, sem afetar o pipeline */
+  display: none;
+
+  /* evita seleção acidental (caso reative) */
+  -webkit-user-select: none;
+  user-select: none;
 }
+
 .thumb {
   width: 100%;
   height: auto;
-  max-height: 65vh;        /* não estoura a janela */
+  max-height: 65vh;
   object-fit: contain;
   border-radius: 8px;
   border: 1px solid var(--border);
   display: block;
+
+  /* anti-highlight azul / arrasto / foco */
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
 }
+
+/* remove highlight de seleção em imagens (Chromium) */
+img::selection { background: transparent; color: inherit; }
+img::-moz-selection { background: transparent; color: inherit; }
+
 .thumb-overlay {
   position: absolute;
   inset: 0;

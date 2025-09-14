@@ -1,0 +1,32 @@
+ACORDO DE LICENÇA DE USUÁRIO FINAL (EULA) — PRIVACY MEETING ASSISTANT
+
+IMPORTANTE: LEIA COM ATENÇÃO ANTES DE INSTALAR OU USAR.
+
+1. OBJETO
+O Privacy Meeting Assistant (“Software”) é fornecido “NO ESTADO EM QUE SE ENCONTRA”, para auxiliar na leitura (OCR) de capturas de tela e na geração de código/explicações com modelos locais de IA (ex.: Ollama). O Software destina-se a estudos, produtividade e revisão de código.
+
+2. USO RESPONSÁVEL
+Você concorda em NÃO utilizar o Software para fraudar, burlar ou obter vantagens desleais em processos seletivos, entrevistas de emprego, provas, avaliações ou quaisquer atividades que exijam autoria própria. O uso indevido é de inteira responsabilidade do usuário.
+
+3. ISENÇÃO DE RESPONSABILIDADE
+Os autores não garantem precisão, disponibilidade ininterrupta ou adequação a um fim específico. O uso é por sua conta e risco. Em hipótese alguma os autores serão responsáveis por danos diretos, indiretos, incidentais, consequenciais ou punitivos decorrentes do uso ou impossibilidade de uso do Software.
+
+4. PRIVACIDADE E DADOS
+Capturas de tela e textos processados permanecem no seu ambiente local, salvo se você optar por enviá-los a serviços de terceiros sob sua responsabilidade (ex.: modelos externos). Você é responsável por cumprir leis e políticas de privacidade aplicáveis no seu contexto.
+
+5. PROPRIEDADE INTELECTUAL
+O Software, incluindo código-fonte, documentação e marcas, é protegido por leis de propriedade intelectual. Este EULA não transfere quaisquer direitos de propriedade.
+
+6. RESTRIÇÕES
+É proibido: (a) remover avisos de direitos autorais; (b) tentar contornar proteções técnicas; (c) redistribuir binários com modificações sem atribuição clara; (d) usar o Software de maneira que viole leis aplicáveis.
+
+7. ATUALIZAÇÕES
+Atualizações podem alterar funcionalidades. Não há obrigação de manutenção ou suporte.
+
+8. RESCISÃO
+O descumprimento deste EULA autoriza a rescisão automática de seu direito de uso. Em caso de rescisão, você deve desinstalar e apagar todas as cópias.
+
+9. LEI APLICÁVEL
+Este EULA será interpretado conforme as leis do seu país de residência, sem prejuízo de normas de ordem pública.
+
+AO CLICAR “CONCORDO” OU INSTALAR O SOFTWARE, VOCÊ DECLARA TER LIDO, COMPREENDIDO E ACEITO INTEGRALMENTE ESTE EULA E ASSUME TODA RESPONSABILIDADE PELO USO.

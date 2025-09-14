@@ -1,4 +1,4 @@
-// renderer.js — captura via hotkeys → OCR → LLM (Ollama) → JSON patch → render
+// renderer.js — captura via hotkeys → OCR → LLM (Ollama) → PATCH JSON → render
 
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
@@ -9,6 +9,30 @@ const feedEl = $("feed");
 let lastText = "";
 let lastOcrStruct = null;
 
+// === Preferências de debug/visual ===
+const SHOW_OCR_DEFAULT = false;
+const SHOW_IMAGE_DEFAULT = false;
+
+let showOCR = (() => {
+  try { return JSON.parse(localStorage.getItem('showOCR') || String(SHOW_OCR_DEFAULT)); }
+  catch { return SHOW_OCR_DEFAULT; }
+})();
+let showImage = (() => {
+  try { return JSON.parse(localStorage.getItem('showImage') || String(SHOW_IMAGE_DEFAULT)); }
+  catch { return SHOW_IMAGE_DEFAULT; }
+})();
+
+function setShowOCR(v) {
+  showOCR = !!v;
+  try { localStorage.setItem('showOCR', JSON.stringify(showOCR)); } catch {}
+  status(`OCR: ${showOCR ? 'visível' : 'oculto'} • Imagem: ${showImage ? 'visível' : 'oculta'}`);
+}
+function setShowImage(v) {
+  showImage = !!v;
+  try { localStorage.setItem('showImage', JSON.stringify(showImage)); } catch {}
+  status(`OCR: ${showOCR ? 'visível' : 'oculto'} • Imagem: ${showImage ? 'visível' : 'oculta'}`);
+}
+
 function status(t) { statusEl.textContent = t; }
 
 /* ===== Wheel fallback ===== */
@@ -17,7 +41,7 @@ window.addEventListener('wheel', (e) => {
   window.scrollBy({ top: e.deltaY, behavior: 'auto' });
 }, { passive: true });
 
-/* ===== Overlay OCR ===== */
+/* ===== Overlay OCR (apenas se imagem estiver habilitada) ===== */
 const BLOCK_HUES = [200, 140, 60, 0, 280, 320, 100, 20];
 const blockColor = (i, a=0.35) => `hsla(${BLOCK_HUES[i % BLOCK_HUES.length]},85%,55%,${a})`;
 
@@ -31,6 +55,8 @@ function ensureOverlay(card, b64) {
   const img = document.createElement('img');
   img.className = 'thumb';
   img.src = `data:image/png;base64,${b64}`;
+  img.setAttribute('draggable', 'false');
+  img.tabIndex = -1;
 
   const canvas = document.createElement('canvas');
   canvas.className = 'thumb-overlay';
@@ -38,14 +64,13 @@ function ensureOverlay(card, b64) {
 
   wrap.appendChild(img);
   wrap.appendChild(canvas);
-  card.insertBefore(wrap, card.children[1]); // fica no lugar do antigo thumb
+  card.insertBefore(wrap, card.children[1]); // após meta
   return { wrap, img, canvas, ctx };
 }
 
 function drawBlocks({ img, canvas, ctx }, ocrData) {
   if (!ocrData?.blocks) return;
 
-  // garante medidas do IMG renderizado
   const r = img.getBoundingClientRect();
   const dispW = Math.max(1, Math.floor(r.width || img.clientWidth || img.naturalWidth));
   const dispH = Math.max(1, Math.floor(r.height || (img.naturalHeight * (dispW / img.naturalWidth))));
@@ -77,18 +102,42 @@ async function ocrBase64Png(b64) {
   return res.data?.text || "";
 }
 
-/* ===== Normalizações ===== */
-function normalizeOcr(text) {
-  if (!text) return '';
-  let s = text;
-  s = s.replace(/[“”]/g, '"').replace(/[’‘]/g, "'");
-  s = s.replace(/\u00A0/g, ' ');
+/* ===== Limpeza agressiva do OCR ===== */
+function normalizeOcr(raw) {
+  if (!raw) return '';
+  let s = raw;
+
+  s = s.replace(/[“”]/g, '"').replace(/[’‘]/g, "'").replace(/\u00A0/g, ' ');
   s = s.replace(/\bparselnt\b/gi, 'parseInt');
   s = s.replace(/\bconsole[,\.]\s*log\b/gi, 'console.log');
-  s = s.replace(/\breadline\s*\(\s*\)\s*/gi, 'readline()');
-  s = s.replace(/[^\S\r\n]+\|[^\S\r\n]+/g, ' ');
-  return s;
+  s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  const drop = [
+    /^\s*https?:\/\/\S+/i,
+    /^\s*(SKIP\s+TUTORIAL|PREVIOUS\s+STEP|Time to code!|game loop)\s*$/i,
+    /^\s*[<>\[\]\(\)\{\}\|\-=_~*•·•]+$/i,
+    /^\s*Copy\/Paste.*$/i,
+    /^\s*Codingame.*$/i,
+    /^\s*CodinGame.*$/i,
+    /^\s*Pergunta:\s*$/i,
+    /^\s*Linguagem:\s*$/i
+  ];
+
+  const lines = s.split('\n')
+    .map(l => l.replace(/[^\S\n]+/g, ' ').trimRight())
+    .filter(l => {
+      if (!l.trim()) return true;
+      if (drop.some(rx => rx.test(l))) return false;
+      const alnum = (l.match(/[0-9A-Za-z]/g) || []).length;
+      return alnum >= Math.ceil(l.length * 0.2);
+    });
+
+  s = lines.join('\n').replace(/[^\S\r\n]+\|[^\S\r\n]+/g, ' ');
+  s = s.split('\n').map(l => l.replace(/[ \t]{2,}/g, ' ')).join('\n');
+
+  return s.trim();
 }
+
 function langToFence(language) {
   switch ((language || 'auto').toLowerCase()) {
     case 'javascript': return 'javascript';
@@ -100,33 +149,34 @@ function langToFence(language) {
   }
 }
 
-/* ===== Prompt ===== */
-function buildPrompt(rawText, language) {
-  const text = normalizeOcr(rawText);
+/* ===== Prompt (JSON only) ===== */
+function buildPrompt(cleanText, language) {
   const langHint = (language && language !== 'auto')
     ? `A linguagem alvo é **${language}**.`
     : `Detecte a linguagem apropriada; em caso de dúvida, **use JavaScript**.`;
 
   return `
-Responda **SEMPRE** em português do Brasil (pt-BR). Corrija silenciosamente ruídos de OCR (parselnt→parseInt, console, log→console.log, etc).
+Responda **somente** em **JSON válido** (sem markdown, sem comentários, sem texto fora do JSON).
+
+Esquema:
+{
+  "descricao": "string (1–2 frases explicando a questão)",
+  "questao": "string (frase objetiva da tarefa)",
+  "linguagem": "string (ex.: JavaScript, Python, ...)",
+  "codigo": "string (APENAS o código final, pronto para colar; sem cercas de markdown)"
+}
 
 ${langHint}
 
-Retorne um JSON com:
-- descricao (1–2 frases explicando a questão),
-- questao (frase objetiva),
-- linguagem (ex.: JavaScript, Python…),
-- codigo (apenas o código final, pronto para colar; sem comentários).
-
-Texto OCR (para contexto):
-\`\`\`text
-${text}
-\`\`\`
+Texto OCR:
+"""
+${cleanText}
+"""
 `.trim();
 }
 
 /* ===== UI ===== */
-function pushItem({ thumb, ocr, answer, metaText }){
+function pushItem({ ocr, answer, metaText }){
   const wrap = document.createElement("div");
   wrap.className = "item";
 
@@ -135,11 +185,12 @@ function pushItem({ thumb, ocr, answer, metaText }){
   meta.textContent = metaText || "";
   wrap.appendChild(meta);
 
-  // espaço para overlay vir aqui (ensureOverlay insere)
-
-  const preOCR = document.createElement("pre");
-  preOCR.textContent = ocr ?? "OCR pendente…";
-  wrap.appendChild(preOCR);
+  let preOCR = null;
+  if (showOCR) {
+    preOCR = document.createElement("pre");
+    preOCR.textContent = ocr ?? "OCR pendente…";
+    wrap.appendChild(preOCR);
+  }
 
   const ans = document.createElement("div");
   ans.className = "answer markdown-body";
@@ -173,35 +224,36 @@ window.bridge.onShot(async (payload) => {
     });
 
     // OCR
-    let rawText;
+    let rawText = "";
     try {
       rawText = await ocrBase64Png(b64);
     } catch (e) {
       const msg = e?.message || e;
-      preOCR.textContent = "Falha no OCR: " + msg;
-      ans.textContent = "Abortado porque o OCR falhou.";
-      status("Falha no OCR.");
-      return;
+      if (preOCR) preOCR.textContent = "Falha no OCR: " + msg;
+      status("OCR falhou — seguindo sem abortar.");
+      // NÃO retorna: prossegue com rawText vazio
+      lastOcrStruct = null;
     }
 
-    // Overlay responsivo
-    const refs = ensureOverlay(wrap, b64);
-    await new Promise((r) => {
-      if (refs.img.complete && refs.img.naturalWidth > 0) return r();
-      refs.img.onload = () => r();
-      refs.img.onerror = () => r();
-    });
+    // (Imagem/overlay) — só se estiver habilitado
+    if (showImage) {
+      const refs = ensureOverlay(wrap, b64);
+      await new Promise((r) => {
+        if (refs.img.complete && refs.img.naturalWidth > 0) return r();
+        refs.img.onload = () => r();
+        refs.img.onerror = () => r();
+      });
+      if (lastOcrStruct?.blocks?.length) drawBlocks(refs, lastOcrStruct);
+    }
 
     const normalized = normalizeOcr(rawText || '');
     lastText = normalized;
-    preOCR.textContent = normalized || "(vazio)";
-
-    if (lastOcrStruct?.blocks?.length) drawBlocks(refs, lastOcrStruct);
+    if (preOCR) preOCR.textContent = normalized || "(vazio)";
 
     // Prompt → PATCH JSON (Ollama)
     const prompt = buildPrompt(lastText, langEl.value);
     status('Perguntando ao LLM (Ollama)…');
-    const res = await window.bridge.generatePatch({ prompt, model: modelEl.value });
+    const res = await window.bridge.generatePatch({ prompt, model: modelEl.value, ocrClean: lastText });
     if (!res?.ok) {
       ans.textContent = 'Falha ao gerar patch: ' + (res?.error || 'erro desconhecido');
       status('Falha ao gerar patch.');
@@ -232,12 +284,12 @@ window.bridge.onShot(async (payload) => {
   }
 });
 
-/* ===== Ctrl+Enter: reprocessa ===== */
+/* ===== Reprocessar último OCR ===== */
 window.bridge.onSolve(async () => {
   if (!lastText || !lastText.trim()) { status("Sem conteúdo do OCR para resolver. Capture a tela primeiro."); return; }
-  const { ans } = pushItem({ ocr: "Usando OCR do último item.", answer: "Gerando resposta…", metaText: `Resposta manual • Modelo: ${modelEl.value}` });
+  const { ans } = pushItem({ ocr: showOCR ? "Usando OCR do último item." : undefined, answer: "Gerando resposta…", metaText: `Resposta manual • Modelo: ${modelEl.value}` });
   const prompt = buildPrompt(lastText, langEl.value);
-  const res = await window.bridge.generatePatch({ prompt, model: modelEl.value });
+  const res = await window.bridge.generatePatch({ prompt, model: modelEl.value, ocrClean: lastText });
   if (!res?.ok) { ans.textContent = 'Falha ao gerar patch: ' + (res?.error || 'erro desconhecido'); status('Falha ao gerar patch.'); return; }
   const p = res.patch || {};
   const fence = langToFence(p.linguagem || langEl.value);
@@ -257,7 +309,18 @@ window.bridge.onSolve(async () => {
   status('Resposta concluída.');
 });
 
+/* ===== Toggles: OCR e IMAGEM ===== */
+window.addEventListener('keydown', (ev) => {
+  const key = ev.key.toLowerCase();
+  if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && key === 'o') {
+    setShowOCR(!showOCR);
+  }
+  if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && key === 'i') {
+    setShowImage(!showImage);
+  }
+});
+
 window.bridge.onReset(() => { lastText = ""; lastOcrStruct = null; status("Contexto limpo. Capture com Ctrl+1/2/H."); });
 
-status("Pronto • Capture com Ctrl+1/2/H • Ctrl+Enter reprocessa");
+status(`Pronto • OCR ${showOCR ? 'visível' : 'oculto'} • Imagem ${showImage ? 'visível' : 'oculta'} • Captura: Ctrl+1/2/H • Resolver: Ctrl+Enter • Toggles: Ctrl+Shift+O / Ctrl+Shift+I`);
 window.bridge?.sendStatus?.("RENDERER: pronto");

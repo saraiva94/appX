@@ -1,6 +1,6 @@
 {
   "name": "appx",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "main.js",
   "productName": "Privacy Meeting Assistant",
   "type": "commonjs",
@@ -15,17 +15,26 @@
     "electron-builder": "^26.0.12"
   },
   "dependencies": {
-    "tesseract.js": "^5.0.4",
+    "@emnapi/runtime": "^1.5.0",
     "electron-log": "^5.1.2",
+    "sharp": "^0.33.4",
+    "tesseract.js": "^5.0.4",
     "zod": "^3.23.8"
   },
   "build": {
     "appId": "meu.copiloto.local",
     "productName": "Privacy Meeting Assistant",
     "asar": true,
+    "asarUnpack": [
+      "node_modules/tesseract.js-core/**"
+    ],
     "files": [
       "main.js",
       "preload.js",
+      "index.html",
+      "style.css",
+      "renderer.js",
+      "llm-ollama.js",
       "renderer/**",
       "workers/**",
       "services/**",
@@ -39,6 +48,21 @@
       "output": "dist",
       "buildResources": "assets"
     },
-    "win": { "target": "nsis" }
+    "artifactName": "${productName} Setup ${version}.exe",
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico",
+      "legalTrademarks": "Privacy Meeting Assistant (appx)"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Privacy Meeting Assistant",
+      "license": "assets/LICENSE-PTBR.txt",
+      "uninstallDisplayName": "Privacy Meeting Assistant",
+      "artifactName": "${productName} Setup ${version}.exe"
+    }
   }
 }
