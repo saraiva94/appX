@@ -28,7 +28,14 @@ ipcRenderer.on('shot:image', (_e, payloadIn) => {
   }
 });
 
-/* API exposta ao renderer */
+// carrega adaptador Ollama (CommonJS) e expõe via bridge
+let _generatePatch = null;
+try {
+  _generatePatch = require('./llm-ollama.js').generatePatch;
+} catch (e) {
+  try { ipcRenderer.send('status', 'PRELOAD: erro ao carregar llm-ollama.js: ' + (e?.message || e)); } catch {}
+}
+
 contextBridge.exposeInMainWorld('bridge', {
   onShot: (cb) => {
     try {
@@ -48,7 +55,7 @@ contextBridge.exposeInMainWorld('bridge', {
   onStatus: (cb) => ipcRenderer.on('status', (_e, msg) => cb(msg)),
   sendStatus: (msg) => ipcRenderer.send('status', msg),
 
-  // Ollama: main retorna { ok, jsonl|error }; aqui viramos em chunks assíncronos
+  // Ollama (stream bruto). Ainda exposto se quiser usar preview.
   askOllama: async ({ prompt, model }) => {
     const res = await ipcRenderer.invoke('ask:ollama', { prompt, model });
     if (!res?.ok) throw new Error(res?.error || 'Falha no Ollama');
@@ -61,14 +68,30 @@ contextBridge.exposeInMainWorld('bridge', {
         try {
           const j = JSON.parse(s);
           if (j?.response) yield j.response;
-        } catch {
-          // ignora linhas quebradas do JSONL
-        }
+        } catch {}
       }
     }
     return { chunks: chunks() };
   },
 
-  // OCR no MAIN
-  ocrPng: (b64, langs = 'eng+por') => ipcRenderer.invoke('ocr:png', { b64, langs })
+  // OCR em base64
+  ocrPng: (b64, langs = 'eng+por') => ipcRenderer.invoke('ocr:png', { b64, langs }),
+
+  // Tessdata path (sync)
+  getTessdataPath: () => ipcRenderer.sendSync('tessdataPath'),
+
+  // Diálogos/ocr arquivo (opcional)
+  pickImage: async () => ipcRenderer.invoke('pickImage'),
+  recognizeImage: async ({ imagePath, whitelist = '' }) => ipcRenderer.invoke('recognizeImage', { imagePath, whitelist }),
+
+  // === NOVO: gera PATCH (JSON) usando o adaptador do Ollama ===
+  generatePatch: async ({ prompt, model }) => {
+    if (!_generatePatch) throw new Error('llm-ollama.js não foi carregado');
+    try {
+      const patch = await _generatePatch({ prompt, model });
+      return { ok: true, patch };
+    } catch (e) {
+      return { ok: false, error: e?.message || String(e) };
+    }
+  }
 });

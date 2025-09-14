@@ -3,48 +3,42 @@
   "version": "1.0.0",
   "main": "main.js",
   "productName": "Privacy Meeting Assistant",
+  "type": "commonjs",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win nsis"
+    "build:win": "electron-builder --win nsis",
+    "build:mac": "electron-builder --mac dmg",
+    "build:linux": "electron-builder --linux AppImage"
   },
-  "type": "commonjs",
   "devDependencies": {
     "electron": "^38.1.0",
     "electron-builder": "^26.0.12"
   },
   "dependencies": {
-    "electron-log": "^5.4.3",
-    "highlight.js": "^11.11.1",
-    "marked": "^16.2.1",
-    "sharp": "^0.34.3",
-    "tesseract.js": "^5.1.1"
+    "tesseract.js": "^5.0.4",
+    "electron-log": "^5.1.2",
+    "zod": "^3.23.8"
   },
   "build": {
     "appId": "meu.copiloto.local",
     "productName": "Privacy Meeting Assistant",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**",
+      "workers/**",
+      "services/**",
+      "assets/**",
+      "package.json"
+    ],
+    "extraResources": [
+      "assets/tessdata/**"
+    ],
     "directories": {
       "output": "dist",
       "buildResources": "assets"
     },
-    "files": [
-      "main.js",
-      "preload.js",
-      "renderer.js",
-      "index.html",
-      "style.css",
-      "assets/**",
-      "node_modules/**"
-    ],
-    "asar": true,
-    "asarUnpack": [
-      "node_modules/tesseract.js/dist/**",
-      "node_modules/tesseract.js-core/**"
-    ],
-    "win": {
-      "target": [
-        "nsis"
-      ],
-      "icon": "assets/icon.ico"
-    }
+    "win": { "target": "nsis" }
   }
 }

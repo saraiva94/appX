@@ -8,3 +8,8 @@ out/
 *.asar
 *.log
 *.png
+node_modules/
+dist/
+build/
+out/
+*.log

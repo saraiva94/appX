@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <title>Privacy Meeting Assistant</title>
 
-  <!-- CSP: liberar cdnjs para scripts/estilos usados pelo marked/hljs -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
                  img-src 'self' data:;
@@ -19,7 +18,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script>
-    // Configura highlight dentro do marked
     marked.setOptions({
       highlight: (code, lang) => {
         try { return hljs.highlight(code, { language: lang }).value; }
@@ -35,6 +33,7 @@
       <select id="model">
         <option value="deepseek-coder:latest">deepseek-coder:latest</option>
         <option value="qwen2.5-coder:3b">qwen2.5-coder:3b</option>
+        <option value="codellama:7b">codellama:7b</option>
       </select>
       <label for="language">Língua</label>
       <select id="language">
